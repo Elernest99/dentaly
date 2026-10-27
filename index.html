@@ -51,7 +51,7 @@ function configurar(){
   var inicio = lsG(K_INICIO) || 'agenda';
   document.body.innerHTML =
     '<div class="pantalla"><div class="caja">' +
-    '<img src="icon-192.png" alt=""><h1>Dentaly</h1><p>Escribe tu PIN una sola vez. Se queda guardado en este teléfono.</p>' +
+    '<img src="icon-192.png" alt=""><h1>Dentaly</h1><p>Escribe <b>tu PIN personal</b> (el mismo de “Mi página”). Se queda guardado en este teléfono y el sistema te reconoce.</p>' +
     '<input id="pin" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="••••" value="' + lsG(K_PIN).replace(/"/g, '') + '">' +
     '<div class="ops"><button type="button" data-i="agenda">🗓️ Abrir en Agenda</button><button type="button" data-i="menu">🏠 Abrir en Menú</button></div>' +
     '<button class="go" id="go">Entrar</button></div></div>';
