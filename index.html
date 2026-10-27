@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B4F4A">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Dentaly</title>
+<style>
+  :root { --verde:#0B4F4A; --fondo:#F6F8F7; --naranja:#B45309; }
+  html, body { margin:0; height:100%; background:var(--fondo); font-family: Arial, Helvetica, sans-serif; }
+  iframe { position:fixed; inset:0; width:100%; height:100%; border:0; background:var(--fondo); }
+  .pantalla { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; padding:20px; box-sizing:border-box; }
+  .caja { background:#fff; border:1px solid #E3ECE9; border-radius:22px; padding:26px 20px; width:100%; max-width:340px; text-align:center; box-shadow:0 10px 28px rgba(11,79,74,.12); }
+  .caja img { width:72px; height:72px; border-radius:18px; }
+  h1 { color:var(--verde); font-size:20px; margin:10px 0 4px; }
+  p { color:#717171; font-size:13px; margin:0 0 16px; }
+  input { font-size:22px; letter-spacing:6px; text-align:center; width:100%; box-sizing:border-box; padding:12px; border:1px solid #CBDDD8; border-radius:14px; background:#F7F7F7; outline:none; }
+  .ops { display:flex; gap:8px; margin:14px 0 4px; }
+  .ops button { flex:1; padding:12px 6px; border-radius:14px; border:1px solid #CBDDD8; background:#fff; color:var(--verde); font-weight:700; font-size:14px; }
+  .ops button.on { background:var(--verde); color:#fff; border-color:var(--verde); }
+  .go { width:100%; margin-top:12px; padding:14px; border:none; border-radius:999px; background:var(--naranja); color:#fff; font-size:16px; font-weight:800; }
+  .cargando { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; color:var(--verde); font-weight:700; background:var(--fondo); transition:opacity .3s; }
+  .cargando img { width:84px; height:84px; border-radius:22px; }
+</style>
+</head>
+<body>
+<script>
+/* DENTALY COMO APP. Este archivo solo "abre" el sistema de Apps Script en
+   pantalla completa y en su propia ventana. No guarda datos de pacientes:
+   el PIN se queda solo en ESTE teléfono. */
+var SISTEMA = 'https://script.google.com/macros/s/AKfycbwExKBacg6rF_7T1fQddk8YhgOCHolOXoD2JGw13KIHwdKGHHvWK9pzbGlMj1mmb9Wchw/exec';
+var K_PIN = 'dentaly_app_pin', K_INICIO = 'dentaly_app_inicio';
+function lsG(k){ try { return localStorage.getItem(k) || ''; } catch(e){ return ''; } }
+function lsS(k, v){ try { localStorage.setItem(k, v); } catch(e){} }
+
+function abrir(){
+  var pin = lsG(K_PIN), inicio = lsG(K_INICIO) || 'agenda';
+  var url = SISTEMA + (inicio === 'agenda' ? '?agenda=1&' : '?') + 'pin=' + encodeURIComponent(pin);
+  document.body.innerHTML = '<div class="cargando" id="carga"><img src="icon-192.png" alt=""><div>Abriendo Dentaly…</div></div>';
+  var f = document.createElement('iframe');
+  f.src = url;
+  f.allow = 'camera; microphone; clipboard-read; clipboard-write; fullscreen';
+  f.onload = function(){ var c = document.getElementById('carga'); if (c) { c.style.opacity = '0'; setTimeout(function(){ c.remove(); }, 300); } };
+  document.body.insertBefore(f, document.body.firstChild);
+}
+
+function configurar(){
+  var inicio = lsG(K_INICIO) || 'agenda';
+  document.body.innerHTML =
+    '<div class="pantalla"><div class="caja">' +
+    '<img src="icon-192.png" alt=""><h1>Dentaly</h1><p>Escribe tu PIN una sola vez. Se queda guardado en este teléfono.</p>' +
+    '<input id="pin" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="••••" value="' + lsG(K_PIN).replace(/"/g, '') + '">' +
+    '<div class="ops"><button type="button" data-i="agenda">🗓️ Abrir en Agenda</button><button type="button" data-i="menu">🏠 Abrir en Menú</button></div>' +
+    '<button class="go" id="go">Entrar</button></div></div>';
+  var bs = document.querySelectorAll('.ops button');
+  function marcar(){ bs.forEach(function(b){ b.className = b.getAttribute('data-i') === inicio ? 'on' : ''; }); }
+  bs.forEach(function(b){ b.onclick = function(){ inicio = b.getAttribute('data-i'); marcar(); }; });
+  marcar();
+  document.getElementById('go').onclick = function(){
+    var p = document.getElementById('pin').value.replace(/\D/g, '');
+    if (p.length < 4) { document.getElementById('pin').focus(); return; }
+    lsS(K_PIN, p); lsS(K_INICIO, inicio); abrir();
+  };
+  document.getElementById('pin').onkeydown = function(e){ if (e.key === 'Enter') document.getElementById('go').click(); };
+}
+
+// Para cambiar el PIN o la pantalla de inicio: abrir la dirección con ?config
+if (location.search.indexOf('config') !== -1 || !lsG(K_PIN)) configurar(); else abrir();
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
+</script>
+</body>
+</html>
