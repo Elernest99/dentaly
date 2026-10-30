@@ -59,13 +59,15 @@ function destinoDeLiga(){
    (ficha, agenda, menú…). Si el teléfono cerró la app para ahorrar memoria,
    al abrirla de nuevo regresa ahí mismo (si fue en las últimas 8 horas).
    La agenda siempre abre en HOY. */
-var K_ULT = 'dentaly_app_ultimo';
+var K_ULT = 'dentaly_app_ultimo', K_FEC = 'dentaly_app_dia';
 window.addEventListener('message', function(e){
   var d = e && e.data;
   if (!d || !d.dentalyPos || typeof d.dentalyPos !== 'object') return;
   var p = {}, src = d.dentalyPos;
   Object.keys(src).forEach(function(k){ if (['pin', 'accion', 'pac', 'fecha', 'mi'].indexOf(k) === -1) p[k] = String(src[k]); });
   lsS(K_ULT, JSON.stringify({ p: p, t: Date.now() }));
+  // Día que se está viendo en la agenda: si se RECARGA pronto (30 min), regresa a ese día.
+  if (d.dentalyFecha && /^\d{4}-\d{2}-\d{2}$/.test(String(d.dentalyFecha))) lsS(K_FEC, JSON.stringify({ f: String(d.dentalyFecha), t: Date.now() }));
 });
 /* 🔔 AVISOS DE TAREAS (2026-10-30): la agenda (con el PIN de recepción) manda
    "dentalyAviso" y aquí se convierte en notificación del teléfono o de Windows,
@@ -94,7 +96,10 @@ function ultimoLugar(){
   try {
     var u = JSON.parse(lsG(K_ULT) || 'null');
     if (!u || Date.now() - u.t > 8 * 3600000) return '';
-    return Object.keys(u.p).map(function(k){ return encodeURIComponent(k) + '=' + encodeURIComponent(u.p[k]); }).join('&');
+    var q = Object.keys(u.p).map(function(k){ return encodeURIComponent(k) + '=' + encodeURIComponent(u.p[k]); }).join('&');
+    // Recargar = seguir en el mismo día de la agenda (si fue hace menos de 30 min; si no, abre en hoy).
+    try { var fd = JSON.parse(lsG(K_FEC) || 'null'); if (u.p.agenda && fd && Date.now() - fd.t < 30 * 60000) q += '&fecha=' + encodeURIComponent(fd.f); } catch(e2){}
+    return q;
   } catch (e) { return ''; }
 }
 
