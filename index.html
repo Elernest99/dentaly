@@ -6,7 +6,11 @@
 <meta name="theme-color" content="#0B4F4A">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
-<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Dentaly">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>Dentaly</title>
 <style>
   :root { --verde:#0B4F4A; --fondo:#F6F8F7; --naranja:#B45309; }
@@ -23,6 +27,8 @@
   .ops button.on { background:var(--verde); color:#fff; border-color:var(--verde); }
   .go { width:100%; margin-top:12px; padding:14px; border:none; border-radius:999px; background:var(--naranja); color:#fff; font-size:16px; font-weight:800; }
   .cargando { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; color:var(--verde); font-weight:700; background:var(--fondo); transition:opacity .3s; }
+  .ios { text-align:left; background:#FFF7ED; border:1px solid #FED7AA; color:#7C2D12; border-radius:14px; padding:10px 12px; font-size:13px; line-height:1.45; margin:0 0 14px; }
+  .ios b { color:#7C2D12; }
   .cargando img { width:84px; height:84px; border-radius:22px; }
 </style>
 </head>
@@ -36,9 +42,45 @@ var K_PIN = 'dentaly_app_pin', K_INICIO = 'dentaly_app_inicio';
 function lsG(k){ try { return localStorage.getItem(k) || ''; } catch(e){ return ''; } }
 function lsS(k, v){ try { localStorage.setItem(k, v); } catch(e){} }
 
+/* Ligas directas: https://elernest99.github.io/dentaly/?caja=DX-065 (o ?id=,
+   ?orden=, ?fecha=...) abren ESA pantalla dentro de la app. En Android, si la
+   app está instalada, el teléfono abre estas ligas en la app y no en Chrome. */
+function destinoDeLiga(){
+  var q = (location.search || '').replace(/^\?/, '');
+  if (!q) return '';
+  var partes = q.split('&').filter(function(kv){
+    var k = kv.split('=')[0];
+    return k && k !== 'config' && k !== 'pin';
+  });
+  return partes.join('&');
+}
+
+/* REGRESAR DONDE ESTABA (2026-10-28): el sistema avisa en qué pantalla va
+   (ficha, agenda, menú…). Si el teléfono cerró la app para ahorrar memoria,
+   al abrirla de nuevo regresa ahí mismo (si fue en las últimas 8 horas).
+   La agenda siempre abre en HOY. */
+var K_ULT = 'dentaly_app_ultimo';
+window.addEventListener('message', function(e){
+  var d = e && e.data;
+  if (!d || !d.dentalyPos || typeof d.dentalyPos !== 'object') return;
+  var p = {}, src = d.dentalyPos;
+  Object.keys(src).forEach(function(k){ if (['pin', 'accion', 'pac', 'fecha', 'mi'].indexOf(k) === -1) p[k] = String(src[k]); });
+  lsS(K_ULT, JSON.stringify({ p: p, t: Date.now() }));
+});
+function ultimoLugar(){
+  try {
+    var u = JSON.parse(lsG(K_ULT) || 'null');
+    if (!u || Date.now() - u.t > 8 * 3600000) return '';
+    return Object.keys(u.p).map(function(k){ return encodeURIComponent(k) + '=' + encodeURIComponent(u.p[k]); }).join('&');
+  } catch (e) { return ''; }
+}
+
 function abrir(){
   var pin = lsG(K_PIN), inicio = lsG(K_INICIO) || 'agenda';
-  var url = SISTEMA + (inicio === 'agenda' ? '?agenda=1&' : '?') + 'pin=' + encodeURIComponent(pin);
+  var liga = destinoDeLiga() || ultimoLugar();
+  var url = liga
+    ? SISTEMA + '?' + liga + '&pin=' + encodeURIComponent(pin)
+    : SISTEMA + (inicio === 'agenda' ? '?agenda=1&' : '?') + 'pin=' + encodeURIComponent(pin);
   document.body.innerHTML = '<div class="cargando" id="carga"><img src="icon-192.png" alt=""><div>Abriendo Dentaly…</div></div>';
   var f = document.createElement('iframe');
   f.src = url;
@@ -47,11 +89,20 @@ function abrir(){
   document.body.insertBefore(f, document.body.firstChild);
 }
 
+// En iPhone: si se abrió desde Safari (no desde el ícono), explica cómo instalarla.
+function avisoIphone(){
+  var ua = navigator.userAgent || '';
+  var ios = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  var instalada = window.navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+  if (!ios || instalada) return '';
+  return '<div class="ios">📲 <b>Para tenerla como app en tu iPhone:</b><br>1. Toca <b>Compartir</b> (el cuadrito con flecha ⬆️).<br>2. Elige <b>“Agregar a inicio”</b> y luego <b>Agregar</b>.<br>3. Abre Dentaly desde el ícono nuevo y escribe ahí tu PIN.</div>';
+}
+
 function configurar(){
   var inicio = lsG(K_INICIO) || 'agenda';
   document.body.innerHTML =
     '<div class="pantalla"><div class="caja">' +
-    '<img src="icon-192.png" alt=""><h1>Dentaly</h1><p>Escribe <b>tu PIN personal</b> (el mismo de “Mi página”). Se queda guardado en este teléfono y el sistema te reconoce.</p>' +
+    '<img src="icon-192.png" alt=""><h1>Dentaly</h1>' + avisoIphone() + '<p>Escribe <b>tu PIN personal</b> (el mismo de “Mi página”). Se queda guardado en este teléfono y el sistema te reconoce.</p>' +
     '<input id="pin" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="••••" value="' + lsG(K_PIN).replace(/"/g, '') + '">' +
     '<div class="ops"><button type="button" data-i="agenda">🗓️ Abrir en Agenda</button><button type="button" data-i="menu">🏠 Abrir en Menú</button></div>' +
     '<button class="go" id="go">Entrar</button></div></div>';
@@ -69,6 +120,27 @@ function configurar(){
 
 // Para cambiar el PIN o la pantalla de inicio: abrir la dirección con ?config
 if (location.search.indexOf('config') !== -1 || !lsG(K_PIN)) configurar(); else abrir();
+
+/* Si la app ya estaba abierta y llega una liga (QR de caja, etc.):
+   el manifest dice "navigate-existing", así que el teléfono recarga la app
+   CON la liga y abrir() la lleva a esa pantalla. Esto de abajo es el respaldo
+   para teléfonos que solo traen la app al frente sin recargar. (2026-10-29:
+   antes el QR traía la app al frente pero se quedaba en el calendario.) */
+if ('launchQueue' in window) {
+  try {
+    var URL_ARRANQUE = location.href;
+    window.launchQueue.setConsumer(function(params){
+      if (!params || !params.targetURL) return;
+      // Si la app se abrió (o recargó) YA con esa liga, abrir() ya la cargó: no se repite.
+      if (params.targetURL === URL_ARRANQUE) { URL_ARRANQUE = ''; return; }
+      var u = new URL(params.targetURL), q = u.search.replace(/^\?/, '');
+      if (!q || q.indexOf('config') !== -1) return;
+      var f = document.querySelector('iframe'), pin = lsG(K_PIN);
+      var url = SISTEMA + '?' + q.split('&').filter(function(kv){ return kv.split('=')[0] !== 'pin'; }).join('&') + '&pin=' + encodeURIComponent(pin);
+      if (f) f.src = url; else abrir();
+    });
+  } catch (e) {}
+}
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
 </script>
